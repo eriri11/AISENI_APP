@@ -1,6 +1,8 @@
 import streamlit as st
 import joblib
 import pandas as pd
+import torch
+import tabpfn
 
 st.set_page_config(page_title='卒中预测Demo', layout='centered')
 
