@@ -8,7 +8,7 @@ st.set_page_config(page_title='卒中预测Demo', layout='centered')
 @st.cache_resource
 def load_model():
     # 返回任意能 predict/predict_proba 的对象
-    return joblib.load('model.pkl')
+    return joblib.load('tabpfn_model.pkl')
 
 model = load_model()
 
