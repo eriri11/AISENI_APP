@@ -4,6 +4,7 @@ import joblib
 import os
 import numpy as np
 from tabpfn import TabPFNClassifier
+import gc
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -59,11 +60,11 @@ with st.form("prediction_form"):
     
     with col1:
         # ONT: Onset to Needle Time? Assuming minutes. Adjust label/help if needed.
-        ont = st.number_input("ONT", min_value=0.0, value=60.0, step=1.0, help="Onset to Needle Time")
+        ont = st.number_input("ONT(min)", min_value=0.0, value=60.0, step=1.0, help="Onset to Needle Time")
         # Baseline NIHSS: Range usually 0-42
         b_nihss = st.number_input("Baseline NIHSS", min_value=0.0, max_value=42.0, value=10.0, step=1.0)
         # Glucose: Assuming mmol/L or mg/dL
-        glucose = st.number_input("Glucose", min_value=0.0, value=5.5, step=0.1)
+        glucose = st.number_input("Glucose(mmol/L)", min_value=0.0, value=5.5, step=0.1)
 
     with col2:
         # SBP: Systolic Blood Pressure
@@ -135,37 +136,52 @@ if submitted:
         with st.expander("View Input Data"):
             st.dataframe(input_data)
 
+        
         # Predict
         with st.spinner("Analyzing clinical data with TabPFN..."):
             try:
-                # Get Probability
-                # TabPFN returns [prob_class_0, prob_class_1]
+                # 1. 获取概率
+                # TabPFN 返回 [Class 0 概率, Class 1 概率]
                 probs = model.predict_proba(input_data)
-                prob_pos = probs[0][1] # Probability of the positive class (e.g., poor outcome/disease)
+                prob_good_outcome = probs[0][1] # 获取 Class 1 (预后良好) 的概率
                 
-                # Get Label
+                # 2. 获取类别
                 pred_label = model.predict(input_data)[0]
 
-                # --- Results Display ---
+                # --- 3. 结果展示 (逻辑已根据你的要求调整) ---
                 st.markdown("### Prediction Results")
                 
                 r_col1, r_col2 = st.columns([1, 2])
                 
                 with r_col1:
+                    # Class 1 = NIHSS 0-1 (Good Outcome) -> 显示绿色 Success
                     if pred_label == 1:
-                        st.error(f"**Class: Positive (1)**")
+                        st.success(f"**Predicted: Good Outcome**\n\n(NIHSS 0-1)")
+                    # Class 0 = NIHSS > 1 (Poor Outcome) -> 显示红色 Error
                     else:
-                        st.success(f"**Class: Negative (0)**")
+                        st.error(f"**Predicted: Poor Outcome**\n\n(NIHSS > 1)")
                 
                 with r_col2:
-                    st.metric(label="Probability of Positive Outcome", value=f"{prob_pos:.2%}")
-                    st.progress(int(prob_pos * 100))
+                    # 显示"预后良好"的概率
+                    st.metric(
+                        label="Probability of Good Outcome (NIHSS 0-1)", 
+                        value=f"{prob_good_outcome:.2%}",
+                        delta="High confidence" if prob_good_outcome > 0.8 else None
+                    )
+                    # 进度条：概率越高越好
+                    st.progress(int(prob_good_outcome * 100))
 
-                # Interpretation text (Optional)
-                if prob_pos > 0.5:
-                    st.warning("⚠️ High Probability: The model predicts a positive outcome (e.g., event occurrence).")
+                # --- 4. 结果解释文本 ---
+                if prob_good_outcome > 0.5:
+                    st.success("✅ **Favorable Prognosis:** The model predicts a high likelihood of early neurological improvement (NIHSS 0-1 at 24h).")
                 else:
-                    st.info("✅ Low Probability: The model predicts a negative outcome.")
+                    st.warning("⚠️ **Risk Alert:** The model predicts a lower likelihood of early recovery. Please monitor closely.")
+
+                # --- 5. 内存释放 (在这里添加) ---
+                # 删除不再使用的大变量
+                del input_data, probs, prob_good_outcome
+                # 强制进行垃圾回收
+                gc.collect()
 
             except Exception as e:
                 st.error(f"Prediction Error: {e}")
